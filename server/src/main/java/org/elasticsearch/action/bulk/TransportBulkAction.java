@@ -477,27 +477,40 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         @Override
         protected void doRun() {
             assert bulkRequest != null;
+            // 获取集群状态
             final ClusterState clusterState = observer.setAndGetObservedState();
+            // 如果集群有阻塞异常
             if (handleBlockExceptions(clusterState)) {
                 return;
             }
+
+            // 索引列表
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
             // Group the requests by ShardId -> Operations mapping
+            // 将请求按照分片分组 构造 requestsByShard
             Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
             Map<Index, IndexRouting> indexRoutings = new HashMap<>();
+
+            // 遍历请求处理
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 // the request can only be null because we set it to null in the previous step, so it gets ignored
                 if (docWriteRequest == null) {
                     continue;
                 }
+
+                // 如果需要别名，但别名不存在
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
+
+                // 如果索引不可用
                 if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
                     continue;
                 }
+
+                // 解析索引
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
                 try {
                     // The ConcreteIndices#resolveIfAbsent(...) method validates via IndexNameExpressionResolver whether
@@ -522,6 +535,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             MappingMetadata mappingMd = indexMetadata.mappingOrDefault();
                             Version indexCreated = indexMetadata.getCreationVersion();
                             indexRequest.resolveRouting(metadata);
+                            // 如果id为空,生成uuid
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
@@ -532,6 +546,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             );
                             break;
                         case DELETE:
+                            // 设置路由
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
@@ -541,14 +556,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         default:
                             throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+
+                    // 获取索引路由表
                     IndexRouting indexRouting = indexRoutings.computeIfAbsent(
                         concreteIndex,
                         idx -> IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(idx))
                     );
+
+                    // 获取索引ID
                     ShardId shardId = clusterService.operationRouting()
                         .indexShards(clusterState, concreteIndex.getName(), indexRouting, docWriteRequest.id(), docWriteRequest.routing())
                         .shardId();
+                    // 获取当前的节点的请求列表，不存在则创建新的空列表
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
+
+                    // 将请求放入对应分片请求列表
                     shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(
@@ -557,6 +579,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         docWriteRequest.id(),
                         e
                     );
+                    // 如果失败，则标记失败，记录结果，不阻塞其它请求，并且设置源请求为null
                     BulkItemResponse bulkItemResponse = BulkItemResponse.failure(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
@@ -564,6 +587,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }
 
+            // 如果需要处理的请求为空，直接返回
             if (requestsByShard.isEmpty()) {
                 listener.onResponse(
                     new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos))
@@ -572,10 +596,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             final AtomicInteger counter = new AtomicInteger(requestsByShard.size());
+            // 获取当前节点ID
             String nodeId = clusterService.localNode().getId();
             for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
                 final ShardId shardId = entry.getKey();
                 final List<BulkItemRequest> requests = entry.getValue();
+
+                // 构建分片请求
                 BulkShardRequest bulkShardRequest = new BulkShardRequest(
                     shardId,
                     bulkRequest.getRefreshPolicy(),
@@ -587,6 +614,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+
+                // 执行分片请求
                 shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -752,6 +781,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {
             Index concreteIndex = indices.get(request.index());
+            // 如果当前索引不存在，则创建索引
             if (concreteIndex == null) {
                 boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
                 try {

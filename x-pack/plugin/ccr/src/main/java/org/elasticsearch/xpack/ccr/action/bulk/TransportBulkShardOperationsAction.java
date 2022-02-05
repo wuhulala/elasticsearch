@@ -176,6 +176,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         Translog.Location location = null;
         for (Translog.Operation sourceOp : sourceOperations) {
             final Translog.Operation targetOp = rewriteOperationWithPrimaryTerm(sourceOp, primary.getOperationPrimaryTerm());
+
+            // 主分片执行索引操作
             final Engine.Result result = primary.applyTranslogOperation(targetOp, Engine.Operation.Origin.PRIMARY);
             if (result.getResultType() == Engine.Result.Type.SUCCESS) {
                 assert result.getSeqNo() == targetOp.seqNo();
@@ -216,12 +218,14 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
                 }
             }
         }
+        // 构造分片请求
         final BulkShardOperationsRequest replicaRequest = new BulkShardOperationsRequest(
             shardId,
             historyUUID,
             appliedOperations,
             maxSeqNoOfUpdatesOrDeletes
         );
+        // 返回结果
         return new WritePrimaryResult<>(replicaRequest, new BulkShardOperationsResponse(), location, null, primary, logger);
     }
 

@@ -332,12 +332,16 @@ final class Bootstrap {
     }
 
     private void start() throws NodeValidationException {
+        // 启动节点
         node.start();
+
+        // 守护线程启动，即一个不会达到终态的县城
         keepAliveThread.start();
     }
 
     static void stop() throws IOException {
         try {
+            // stop
             IOUtils.close(INSTANCE.node, INSTANCE.spawner);
             if (INSTANCE.node != null && INSTANCE.node.awaitClose(10, TimeUnit.SECONDS) == false) {
                 throw new IllegalStateException("Node didn't stop within 10 seconds. Any outstanding requests or tasks might get killed.");
@@ -370,6 +374,8 @@ final class Bootstrap {
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
+
+        // java 版本检查
         if (JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0) {
             final String message = String.format(
                 Locale.ROOT,
@@ -380,6 +386,8 @@ final class Bootstrap {
             );
             DeprecationLogger.getLogger(Bootstrap.class).critical(DeprecationCategory.OTHER, "java_version_11_required", message);
         }
+
+        //
         if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
             final String message = String.format(
                 Locale.ROOT,
@@ -390,6 +398,8 @@ final class Bootstrap {
             DeprecationLogger.getLogger(Bootstrap.class)
                 .critical(DeprecationCategory.SETTINGS, "strict_duplicate_detection_setting_removed", message);
         }
+
+        // pid Filed
         if (environment.pidFile() != null) {
             try {
                 PidFile.create(environment.pidFile(), true);
@@ -417,6 +427,7 @@ final class Bootstrap {
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
 
+            // 插件加载
             if (PluginsManager.configExists(environment)) {
                 if (Build.CURRENT.type() == Build.Type.DOCKER) {
                     try {
@@ -431,6 +442,7 @@ final class Bootstrap {
                 }
             }
 
+            // 安装
             INSTANCE.setup(true, environment);
 
             try {
@@ -440,6 +452,7 @@ final class Bootstrap {
                 throw new BootstrapException(e);
             }
 
+            // 启动
             INSTANCE.start();
 
             // We don't close stderr if `--quiet` is passed, because that

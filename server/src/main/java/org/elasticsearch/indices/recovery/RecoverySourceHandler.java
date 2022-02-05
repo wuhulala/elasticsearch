@@ -244,17 +244,23 @@ public class RecoverySourceHandler {
             final StepListener<SendSnapshotResult> sendSnapshotStep = new StepListener<>();
             final StepListener<Void> finalizeStep = new StepListener<>();
 
+            // 基于索引操作的恢复
             if (isSequenceNumberBasedRecovery) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
                 if (retentionLeaseRef.get() == null) {
                     createRetentionLease(startingSeqNo, sendFileStep.map(ignored -> SendFileResult.EMPTY));
                 } else {
+                    //
                     sendFileStep.onResponse(SendFileResult.EMPTY);
                 }
             } else {
+
+                // 基于索引文件的恢复
                 final Engine.IndexCommitRef safeCommitRef;
                 try {
+
+                    // 获取最新提交的引用
                     safeCommitRef = acquireSafeCommit(shard);
                     resources.add(safeCommitRef);
                 } catch (final Exception e) {
@@ -271,15 +277,22 @@ public class RecoverySourceHandler {
                 // advances and not when creating a new safe commit. In any case this is a best-effort thing since future recoveries can
                 // always fall back to file-based ones, and only really presents a problem if this primary fails before things have settled
                 // down.
+
+                // 获取索引本地checkpoint位置
                 startingSeqNo = softDeletesEnabled
                     ? Long.parseLong(safeCommitRef.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1L
                     : 0;
                 logger.trace("performing file-based recovery followed by history replay starting at [{}]", startingSeqNo);
 
                 try {
+                    // 计算需要同步的操作信息
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", historySource, startingSeqNo);
+
+                    //
                     final Releasable releaseStore = acquireStore(shard.store());
                     resources.add(releaseStore);
+
+                    // 当同步结束后，删除回复
                     sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
                         try {
                             IOUtils.close(safeCommitRef, releaseStore);
@@ -965,6 +978,8 @@ public class RecoverySourceHandler {
             logger.trace("cloning primary's retention lease");
             try {
                 final StepListener<ReplicationResponse> cloneRetentionLeaseStep = new StepListener<>();
+
+                // 分片克隆到目标节点
                 final RetentionLease clonedLease = shard.cloneLocalPeerRecoveryRetentionLease(
                     request.targetNode().getId(),
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)

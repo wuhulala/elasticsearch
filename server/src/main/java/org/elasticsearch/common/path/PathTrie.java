@@ -362,6 +362,7 @@ public class PathTrie<T> {
                 if (hasNext() == false) {
                     throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
                 }
+                // 检索路径
                 return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
             }
         };

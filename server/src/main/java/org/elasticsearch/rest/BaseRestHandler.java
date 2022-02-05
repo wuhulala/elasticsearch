@@ -105,7 +105,7 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         usageCount.increment();
-        // execute the action
+        // execute the action,action 是由各个处理器返回的
         action.accept(channel);
     }
 

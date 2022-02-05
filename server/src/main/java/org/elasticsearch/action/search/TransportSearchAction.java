@@ -980,6 +980,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
             }).collect(Collectors.toList());
         }
+
+        // 合并
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());

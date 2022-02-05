@@ -1150,31 +1150,54 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
+        //
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
+
+        // 索引服务
         injector.getInstance(IndicesService.class).start();
+
+        // 索引集群状态服务
         injector.getInstance(IndicesClusterStateService.class).start();
+
+        // 快照服务
         injector.getInstance(SnapshotsService.class).start();
+
+        // 分片快照服务
         injector.getInstance(SnapshotShardsService.class).start();
+
+        // 存储服务
         injector.getInstance(RepositoriesService.class).start();
+
+        // 检索服务
         injector.getInstance(SearchService.class).start();
+
+        // 文件健康
         injector.getInstance(FsHealthService.class).start();
+
+        // 监控服务
         nodeService.getMonitorService().start();
 
+        // 集群服务
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
+        // 节点连接
         final NodeConnectionsService nodeConnectionsService = injector.getInstance(NodeConnectionsService.class);
         nodeConnectionsService.start();
         clusterService.setNodeConnectionsService(nodeConnectionsService);
 
+        // gateway
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
         clusterService.getMasterService().setClusterStatePublisher(discovery::publish);
 
+        // 通讯服务
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(transportService));
         transportService.start();
+
+        // 索引恢复恢复
         assert localNodeFactory.getNode() != null;
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
@@ -1221,11 +1244,16 @@ public class Node implements Closeable {
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known
+        // 等传输层启动号，再启动节点发现服务
         discovery.start(); // start before cluster service so that it can set initial state on ClusterApplierService
         clusterService.start();
         assert clusterService.localNode().equals(localNodeFactory.getNode())
             : "clusterService has a different local node than the factory provided";
+
+        // 设置传输层接受请求
         transportService.acceptIncomingRequests();
+
+        // 节点启动加入集群
         discovery.startInitialJoin();
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings());
         configureNodeAndClusterIdStateListener(clusterService);
@@ -1264,6 +1292,7 @@ public class Node implements Closeable {
             }
         }
 
+        // rest服务
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {

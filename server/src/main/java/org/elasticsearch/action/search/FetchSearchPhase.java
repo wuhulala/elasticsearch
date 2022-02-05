@@ -106,6 +106,7 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void innerRun() throws Exception {
+        // 获取分片个数
         final int numShards = context.getNumShards();
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
@@ -223,6 +224,7 @@ final class FetchSearchPhase extends SearchPhase {
                         try {
                             fieldsOptionAdapter.adaptResponse(connection.getVersion(), result.hits().getHits());
                             progressListener.notifyFetchResult(shardIndex);
+                            // 写入结果集中，并将信号量减1
                             counter.onResult(result);
                         } catch (Exception e) {
                             context.onPhaseFailure(FetchSearchPhase.this, "", e);

@@ -560,6 +560,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
+            // 如果是主分片
             if (newRouting.primary()) {
                 if (newPrimaryTerm == pendingPrimaryTerm) {
                     if (currentRouting.initializing() && currentRouting.isRelocationTarget() == false && newRouting.active()) {
@@ -619,7 +620,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 + newRouting;
                         assert getOperationPrimaryTerm() == newPrimaryTerm;
                         try {
+                            // 设置为主分片
                             replicationTracker.activatePrimaryMode(getLocalCheckpoint());
+
+                            // 确保PeerRecoveryRetentionLeases存在
                             ensurePeerRecoveryRetentionLeasesExist();
                             /*
                              * If this shard was serving as a replica shard when another shard was promoted to primary then
@@ -630,6 +634,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
                              */
                             final Engine engine = getEngine();
+
+                            // 从本地translog恢复
                             engine.restoreLocalHistoryFromTranslog(
                                 (resettingEngine, snapshot) -> runTranslogRecovery(
                                     resettingEngine,

@@ -448,6 +448,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
+        // 获取匹配的handler
         return handlers.retrieveAll(rawPath, paramsSupplier);
     }
 

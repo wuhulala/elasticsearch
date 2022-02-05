@@ -426,6 +426,7 @@ public class InternalEngine extends Engine {
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            // 获取本地检查点的位置
             try (Translog.Snapshot snapshot = getTranslog().newSnapshot(localCheckpoint + 1, Long.MAX_VALUE)) {
                 return translogRecoveryRunner.run(this, snapshot);
             }
@@ -611,6 +612,7 @@ public class InternalEngine extends Engine {
                 return LuceneChangesSnapshot.countOperations(searcher, startingSeqNo, Long.MAX_VALUE);
             }
         } else {
+            //
             return getTranslog().estimateTotalOperationsFromMinSeq(startingSeqNo);
         }
     }
@@ -1238,6 +1240,7 @@ public class InternalEngine extends Engine {
         index.parsedDoc().version().setLongValue(plan.versionForIndexing);
         try {
             if (plan.addStaleOpToLucene) {
+                // 老的添加软删除的标识，然后新增文档
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
                 assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), index.seqNo(), true, true);

@@ -101,11 +101,14 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     public int run(Engine engine, Translog.Snapshot snapshot) throws IOException {
         int opsRecovered = 0;
         Translog.Operation operation;
+        // 只要不为空
         while ((operation = snapshot.next()) != null) {
+            // 执行
             applyOperation(engine, convertToEngineOp(operation, Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY));
             opsRecovered++;
             appliedOperations.incrementAndGet();
         }
+        // 同步事务日志位置
         engine.syncTranslog();
         return opsRecovered;
     }

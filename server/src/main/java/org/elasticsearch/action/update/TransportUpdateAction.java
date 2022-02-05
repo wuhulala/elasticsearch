@@ -117,7 +117,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     public static void resolveAndValidateRouting(Metadata metadata, String concreteIndex, UpdateRequest request) {
-        request.routing((metadata.resolveWriteIndexRouting(request.routing(), request.index())));
+        request.routing(metadata.resolveWriteIndexRouting(request.routing(), request.index()));
         // Fail fast on the node that received the request, rather than failing when translating on the index or delete request.
         if (request.routing() == null && metadata.routingRequired(concreteIndex)) {
             throw new RoutingMissingException(concreteIndex, request.type(), request.id());

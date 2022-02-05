@@ -224,6 +224,7 @@ public abstract class TransportReplicationAction<
 
     private void runReroutePhase(Task task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
         try {
+            // 路由
             new ReroutePhase((ReplicationTask) task, request, listener, initiatedByNodeClient).run();
         } catch (RuntimeException e) {
             listener.onFailure(e);
@@ -379,7 +380,9 @@ public abstract class TransportReplicationAction<
 
         @Override
         protected void doRun() throws Exception {
+            // 获取主分片ID
             final ShardId shardId = primaryRequest.getRequest().shardId();
+
             final IndexShard indexShard = getIndexShard(shardId);
             final ShardRouting shardRouting = indexShard.routingEntry();
             // we may end up here if the cluster state used to route the primary is so stale that the underlying
@@ -388,6 +391,7 @@ public abstract class TransportReplicationAction<
             if (shardRouting.primary() == false) {
                 throw new ReplicationOperation.RetryOnPrimaryException(shardId, "actual shard is not a primary " + shardRouting);
             }
+
             final String actualAllocationId = shardRouting.allocationId().getId();
             if (actualAllocationId.equals(primaryRequest.getTargetAllocationID()) == false) {
                 throw new ShardNotFoundException(
@@ -887,6 +891,8 @@ public abstract class TransportReplicationAction<
                     return;
                 }
                 final DiscoveryNode node = state.nodes().get(primary.currentNodeId());
+
+                // 如果是当前节点，则在当前节点执行，否则转发
                 if (primary.currentNodeId().equals(state.nodes().getLocalNodeId())) {
                     performLocalAction(state, primary, node, indexMetadata);
                 } else {

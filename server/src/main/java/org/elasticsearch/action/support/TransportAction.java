@@ -72,6 +72,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          * this method.
          */
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
+
+        // 创建任务
         final Task task;
         try {
             task = taskManager.register("transport", actionName, request);
@@ -79,6 +81,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             unregisterChildNode.close();
             throw e;
         }
+
+        // 执行任务
         execute(task, request, new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
