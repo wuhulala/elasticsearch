@@ -54,7 +54,7 @@ build/
 html_docs
 
 # random old stuff that we should look at the necessity of...
-/tmp/
+/001tmp/
 eclipse-build
 
 # projects using testfixtures
